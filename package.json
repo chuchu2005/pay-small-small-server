@@ -1,0 +1,19 @@
+{
+  "name": "pay-small-small-server",
+  "version": "1.0.0",
+  "description": "MCP tool server for the Pay Small Small Cashier Chord teammate (Paystack + Google Sheets)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "express": "^4.21.2",
+    "googleapis": "^144.0.0",
+    "zod": "^3.24.1"
+  }
+}
