@@ -31,6 +31,9 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || ""; // sk_test_..
 const SHEET_ID = process.env.SHEET_ID || "";
 const SHEET_TAB = process.env.SHEET_TAB || "Ledger";
 const GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || "";
+// Where Paystack sends the customer after they pay (overrides the account's
+// global callback per-transaction). Defaults to this server's /paid page.
+const CALLBACK_URL = process.env.CALLBACK_URL || "https://pay-small-small-server.onrender.com/paid";
 // Secret code the owner must provide to see business totals. Works in any
 // channel (including a test simulator) because it does not rely on the
 // sender's phone number.
@@ -261,11 +264,11 @@ function buildServer() {
     "create_payment_link",
     {
       description:
-        "Create a Paystack payment link for a specific amount in naira. Use for a deposit or a part-payment. Returns a secure checkout URL and a reference to verify later.",
+        "Create a Paystack payment link for a specific amount in naira. Use for a deposit or a part-payment. The customer's email is required, always collect it first; it is used for the Paystack receipt and record. Returns a secure checkout URL and a reference to verify later.",
       inputSchema: {
-        email: z.string().describe("Customer email for the Paystack receipt"),
         amount_naira: z.number().describe("Amount to collect now, in naira"),
         phone: z.string(),
+        email: z.string().describe("Customer email for the Paystack receipt (required)"),
         purpose: z.string().optional().describe("What this payment is for, e.g. 'deposit on Ankara'"),
       },
     },
@@ -276,7 +279,12 @@ function buildServer() {
         amount: Math.round(amount_naira * 100), // naira -> kobo
         reference,
         currency: "NGN",
-        metadata: { phone: normPhone(phone), purpose: purpose || "" },
+        // Per-transaction callback overrides the account's global callback URL,
+        // so the customer lands on OUR thank-you page regardless of account settings.
+        callback_url: CALLBACK_URL || undefined,
+        // Store the intended amount so the webhook credits the ledger the amount
+        // the customer agreed to, even if Paystack adds fees on top at checkout.
+        metadata: { phone: normPhone(phone), purpose: purpose || "", amount_naira },
       });
       return textResult({
         payment_link: data.authorization_url,
@@ -482,7 +490,12 @@ app.post("/paystack/webhook", async (req, res) => {
     if (event?.event === "charge.success" && event?.data?.status === "success") {
       const d = event.data;
       const phone = d?.metadata?.phone || "";
-      const amountNaira = Number(d.amount || 0) / 100;
+      // Prefer the intended amount we stored at create time; fall back to the
+      // charged amount. This keeps the ledger to the installment the customer
+      // agreed to, not the fee-inclusive total Paystack may charge.
+      const amountNaira = d?.metadata?.amount_naira != null
+        ? Number(d.metadata.amount_naira)
+        : Number(d.amount || 0) / 100;
       if (phone) {
         const result = await recordPaymentToLedger(phone, d.reference, amountNaira);
         console.log("Webhook recorded:", JSON.stringify(result));
