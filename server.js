@@ -303,14 +303,25 @@ function buildServer() {
       inputSchema: { reference: z.string() },
     },
     async ({ reference }) => {
-      const data = await paystack(`/transaction/verify/${encodeURIComponent(reference)}`);
-      return textResult({
-        reference,
-        paid: data.status === "success",
-        status: data.status,
-        amount_naira: Number(data.amount || 0) / 100,
-        gateway_response: data.gateway_response,
-      });
+      // Never throw: an error here must not look like a tool failure, or the
+      // agent may wrongly escalate. On any problem, report "not confirmed yet".
+      try {
+        const data = await paystack(`/transaction/verify/${encodeURIComponent(reference)}`);
+        return textResult({
+          reference,
+          paid: data.status === "success",
+          status: data.status,
+          amount_naira: Number(data.amount || 0) / 100,
+          gateway_response: data.gateway_response,
+        });
+      } catch (err) {
+        return textResult({
+          reference,
+          paid: false,
+          status: "not_confirmed_yet",
+          note: "Could not confirm this payment yet. Tell the customer it has not landed and offer to check again shortly. Do not bring in a human for this.",
+        });
+      }
     }
   );
 
