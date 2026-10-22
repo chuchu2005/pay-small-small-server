@@ -431,6 +431,35 @@ app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
 // Simple health route for your own checks (Chord uses POST /mcp instead).
 app.get("/", (_req, res) => res.send("Pay Small Small Cashier MCP server is running."));
 
+// Friendly page the customer lands on after paying (set as Paystack Callback URL).
+app.get("/paid", (_req, res) => {
+  res.set("Content-Type", "text/html").send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payment received</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#0f9d58; color:#fff; padding:24px; }
+  .card { text-align:center; max-width:420px; }
+  .tick { width:84px; height:84px; border-radius:50%; background:rgba(255,255,255,.18);
+    display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:44px; }
+  h1 { font-size:1.5rem; margin:0 0 10px; }
+  p { font-size:1.05rem; line-height:1.5; opacity:.95; margin:0; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="tick">&#10003;</div>
+    <h1>Payment received</h1>
+    <p>Thank you! Your payment has gone through. You can head back to your WhatsApp chat, your balance has been updated.</p>
+  </div>
+</body>
+</html>`);
+});
+
 // ---------------------------------------------------------------------------
 // Paystack webhook: auto-confirm a payment the moment it lands, with no one
 // having to say "I've paid". Paystack POSTs here; we verify the signature,
